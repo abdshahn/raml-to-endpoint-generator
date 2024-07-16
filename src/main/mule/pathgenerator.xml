@@ -8,7 +8,7 @@ http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mul
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
 http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
 	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="041b2e6d-e0b3-4442-87f7-0d3c934123da" >
-		<http:listener-connection host="0.0.0.0" port="8081" />
+		<http:listener-connection host="0.0.0.0" port="8082" />
 	</http:listener-config>
 	<flow name="pathgeneratorFlow" doc:id="02b1dda4-c44c-4d08-aca0-7cdb4130cf7c" >
 		<http:listener doc:name="Listener - Post" doc:id="b8bf4a5c-76cc-4ce5-b3c6-5d93e2cdd497" config-ref="HTTP_Listener_config" path="/generate" allowedMethods="POST" outputMimeType="application/yaml"/>
@@ -37,9 +37,9 @@ output application/json
 FlattenJson::flattenJson(payload)]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
-		<ee:transform doc:name="Generating URLs" doc:id="2b9e8ae7-cb4b-48da-9605-099084b76456" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
+		<ee:transform doc:name="Generating URLs" doc:id="2b9e8ae7-cb4b-48da-9605-099084b76456">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
 output application/json  
 ---
 payload 
@@ -51,14 +51,14 @@ payload
     //Splitting methods from Strings
     map (
         if ($ contains "get") {get: ($ splitBy "get")[0]}
-        else if ($ contains "head") {head: ($ splitBy "head")[0]}
         else if ($ contains "post") {post: ($ splitBy "post")[0]}
         else if ($ contains "put")  {put: ($ splitBy "put")[0]}
+        else if ($ contains "patch") {patch: ($ splitBy "patch")[0]}
         else if ($ contains "delete") {delete: ($ splitBy "delete")[0]}
+        else if ($ contains "head") {head: ($ splitBy "head")[0]}
         else if ($ contains "connect") {connect: ($ splitBy "connect")[0]}
         else if ($ contains "options") {options: ($ splitBy "options")[0]}
         else if ($ contains "trace") {trace: ($ splitBy "trace")[0]}
-        else if ($ contains "patch") {patch: ($ splitBy "patch")[0]}
         else {"":$})
     //Removing duplicates
     distinctBy ($)
@@ -70,6 +70,18 @@ payload
     orderBy $]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
+		<choice doc:name="Choice" doc:id="c0d790db-b97c-4ee0-b6e2-a6ef816143e9" >
+			<when expression="#[attributes.queryParams.group == 'yes']">
+				<ee:transform doc:name="Grouping" doc:id="c3ef6241-35f9-4dc5-92bc-274c6c896994" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload groupBy($) mapObject(($$):$ pluck $$)]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+		</choice>
 		<logger level="INFO" doc:name="Logger" doc:id="cdb432cf-8e53-49eb-8a9d-08c3950dddfb" message="#[payload]"/>
 		
 	</flow>
