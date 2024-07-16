@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="041b2e6d-e0b3-4442-87f7-0d3c934123da" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="pathgeneratorFlow" doc:id="02b1dda4-c44c-4d08-aca0-7cdb4130cf7c" >
+		<http:listener doc:name="Listener - Post" doc:id="b8bf4a5c-76cc-4ce5-b3c6-5d93e2cdd497" config-ref="HTTP_Listener_config" path="/generate" allowedMethods="POST" outputMimeType="application/yaml"/>
+		<ee:transform doc:name="To Json" doc:id="f1b26f7f-28f4-4939-b22f-857872249cd7">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Removing Unwanted strings" doc:id="3faa6797-26ee-4288-9a2d-a284f21baabb" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload filterObject ($$ contains "/" )]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Flatten Json" doc:id="3ec47ac3-f9c5-47a9-b6d2-e86a0d7b719f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+import java!com::flatten::FlattenJson
+output application/json
+---
+FlattenJson::flattenJson(payload)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Generating URLs" doc:id="2b9e8ae7-cb4b-48da-9605-099084b76456" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json  
+---
+payload 
+    pluck $$
+    //Fetching Strings containing methods
+    filter ($ contains /get|post|put|patch|delete|head|connect|options|trace/)
+    //Removing Exceptions
+    filter !($ contains /get[_-]|post[_-]|put[_-]|patch[_-]|delete[_-]|head[_-]|connect[_-]|options[_-]|trace[_-]/) 
+    //Splitting methods from Strings
+    map (
+        if ($ contains "get") {get: ($ splitBy "get")[0]}
+        else if ($ contains "head") {head: ($ splitBy "head")[0]}
+        else if ($ contains "post") {post: ($ splitBy "post")[0]}
+        else if ($ contains "put")  {put: ($ splitBy "put")[0]}
+        else if ($ contains "delete") {delete: ($ splitBy "delete")[0]}
+        else if ($ contains "connect") {connect: ($ splitBy "connect")[0]}
+        else if ($ contains "options") {options: ($ splitBy "options")[0]}
+        else if ($ contains "trace") {trace: ($ splitBy "trace")[0]}
+        else if ($ contains "patch") {patch: ($ splitBy "patch")[0]}
+        else {"":$})
+    //Removing duplicates
+    distinctBy ($)
+    //Converting to single Object
+    reduce ($++$$)
+    //Removing "."
+    mapObject (($$):$ splitBy "." joinBy "")
+    //Ordering
+    orderBy $]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="cdb432cf-8e53-49eb-8a9d-08c3950dddfb" message="#[payload]"/>
+		
+	</flow>
+</mule>
